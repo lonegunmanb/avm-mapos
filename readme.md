@@ -1,1 +1,1 @@
-mapotf transform --mptf-var target_resource_address="azurerm_container_app.this" --mptf-var support_system_assigned=true --mptf-var support_user_assigned=true  --mptf-dir ..\managed_identities\
+Some [`mapotf`](https://github.com/Azure/mapotf) configs that help you applied [Avm Interfaces](https://azure.github.io/Azure-Verified-Modules/specs/shared/interfaces/) on your Terraform modules.

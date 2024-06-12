@@ -63,7 +63,7 @@ variable support_user_assigned {
 
 transform "update_in_place" "system_and_user_assigned" {
   for_each = var.support_system_assigned && var.support_user_assigned ? [var.target_resource_address] : []
-  target_block_address = each.value
+  target_block_address = "resource.${each.value}"
   asraw {
     dynamic "identity" {
       for_each = local.managed_identities.system_assigned_user_assigned
@@ -77,7 +77,7 @@ transform "update_in_place" "system_and_user_assigned" {
 
 transform "update_in_place" "system_assigned_only" {
   for_each = var.support_system_assigned && !var.support_user_assigned ? [var.target_resource_address] : []
-  target_block_address = each.value
+  target_block_address = "resource.${each.value}"
   asraw {
     dynamic "identity" {
       for_each = identity.managed_identities.system_assigned
@@ -90,7 +90,7 @@ transform "update_in_place" "system_assigned_only" {
 
 transform "update_in_place" "user_assigned_only" {
   for_each = !var.support_system_assigned && var.support_user_assigned ? [var.target_resource_address] : []
-  target_block_address = each.value
+  target_block_address = "resource.${each.value}"
   asraw {
     dynamic "identity" {
       for_each = local.managed_identities.user_assigned
