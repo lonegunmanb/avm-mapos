@@ -1,0 +1,1 @@
+mapotf transform --mptf-var target_resource_address="azurerm_container_app.this" --mptf-var support_system_assigned=true --mptf-var support_user_assigned=true  --mptf-dir ..\managed_identities\
