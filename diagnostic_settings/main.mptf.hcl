@@ -54,7 +54,6 @@ transform "new_block" "azurerm_monitor_diagnostic_setting_resource" {
   labels         = ["azurerm_monitor_diagnostic_setting", "this"]
   asraw {
     for_each                       = var.diagnostic_settings
-    name                           = each.value.name != null ? each.value.name : "diag-${var.name}"
     storage_account_id             = each.value.storage_account_resource_id
     eventhub_authorization_rule_id = each.value.event_hub_authorization_rule_resource_id
     eventhub_name                  = each.value.event_hub_name
@@ -84,6 +83,8 @@ transform "new_block" "azurerm_monitor_diagnostic_setting_resource" {
     }
   }
   asstring {
+#     name                           = each.value.name != null ? each.value.name : diag-azurerm_container_app.this.name
+    name                           = "each.value.name != null ? each.value.name : ${coalesce(var.monitor_diagnostic_setting_default_name, "\"diag-$${${var.target_resource_address}.name}\"")}"
     target_resource_id             = "${var.target_resource_address}.id"
   }
 }
@@ -94,4 +95,9 @@ variable "target_resource_address" {
     condition = startswith(var.target_resource_address, "azurerm_")
     error_message = "The target resource address must be an Azure resource type."
   }
+}
+
+variable "monitor_diagnostic_setting_default_name" {
+  type    = string
+  default = null
 }

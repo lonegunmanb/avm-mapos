@@ -61,6 +61,13 @@ variable support_user_assigned {
   type = bool
 }
 
+transform "remove_nested_block" remove_identity {
+  target_block_address = "resource.${var.target_resource_address}"
+  paths = [
+    "identity",
+  ]
+}
+
 transform "update_in_place" "system_and_user_assigned" {
   for_each = var.support_system_assigned && var.support_user_assigned ? [var.target_resource_address] : []
   target_block_address = "resource.${each.value}"
@@ -73,6 +80,7 @@ transform "update_in_place" "system_and_user_assigned" {
       }
     }
   }
+  depends_on = [transform.remove_nested_block.remove_identity]
 }
 
 transform "update_in_place" "system_assigned_only" {
@@ -86,6 +94,7 @@ transform "update_in_place" "system_assigned_only" {
       }
     }
   }
+  depends_on = [transform.remove_nested_block.remove_identity]
 }
 
 transform "update_in_place" "user_assigned_only" {
@@ -100,4 +109,5 @@ transform "update_in_place" "user_assigned_only" {
       }
     }
   }
+  depends_on = [transform.remove_nested_block.remove_identity]
 }
