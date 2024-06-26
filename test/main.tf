@@ -1,278 +1,62 @@
-resource "azurerm_container_app" "this" {
-  container_app_environment_id = var.container_app_container_app_environment_id
-  name                         = var.container_app_name
-  resource_group_name          = var.container_app_resource_group_name
-  revision_mode                = var.container_app_revision_mode
-  tags                         = var.container_app_tags
-  workload_profile_name        = var.container_app_workload_profile_name
+resource "azurerm_cognitive_account" "this" {
+  kind                                         = var.cognitive_account_kind
+  location                                     = var.cognitive_account_location
+  name                                         = var.cognitive_account_name
+  resource_group_name                          = var.cognitive_account_resource_group_name
+  sku_name                                     = var.cognitive_account_sku_name
+  custom_question_answering_search_service_id  = var.cognitive_account_custom_question_answering_search_service_id
+  custom_question_answering_search_service_key = var.cognitive_account_custom_question_answering_search_service_key
+  custom_subdomain_name                        = var.cognitive_account_custom_subdomain_name
+  dynamic_throttling_enabled                   = var.cognitive_account_dynamic_throttling_enabled
+  fqdns                                        = var.cognitive_account_fqdns
+  local_auth_enabled                           = var.cognitive_account_local_auth_enabled
+  metrics_advisor_aad_client_id                = var.cognitive_account_metrics_advisor_aad_client_id
+  metrics_advisor_aad_tenant_id                = var.cognitive_account_metrics_advisor_aad_tenant_id
+  metrics_advisor_super_user_name              = var.cognitive_account_metrics_advisor_super_user_name
+  metrics_advisor_website_name                 = var.cognitive_account_metrics_advisor_website_name
+  outbound_network_access_restricted           = var.cognitive_account_outbound_network_access_restricted
+  public_network_access_enabled                = var.cognitive_account_public_network_access_enabled
+  qna_runtime_endpoint                         = var.cognitive_account_qna_runtime_endpoint
+  tags                                         = var.cognitive_account_tags
 
-  dynamic "template" {
-    for_each = [var.container_app_template]
+  dynamic "customer_managed_key" {
+    for_each = var.cognitive_account_customer_managed_key == null ? [] : [var.cognitive_account_customer_managed_key]
     content {
-      max_replicas    = template.value.max_replicas
-      min_replicas    = template.value.min_replicas
-      revision_suffix = template.value.revision_suffix
-
-      dynamic "container" {
-        for_each = template.value.container
-        content {
-          cpu     = container.value.cpu
-          image   = container.value.image
-          memory  = container.value.memory
-          name    = container.value.name
-          args    = container.value.args
-          command = container.value.command
-
-          dynamic "env" {
-            for_each = container.value.env == null ? [] : container.value.env
-            content {
-              name        = env.value.name
-              secret_name = env.value.secret_name
-              value       = env.value.value
-            }
-          }
-          dynamic "liveness_probe" {
-            for_each = container.value.liveness_probe == null ? [] : container.value.liveness_probe
-            content {
-              port                    = liveness_probe.value.port
-              transport               = liveness_probe.value.transport
-              failure_count_threshold = liveness_probe.value.failure_count_threshold
-              host                    = liveness_probe.value.host
-              initial_delay           = liveness_probe.value.initial_delay
-              interval_seconds        = liveness_probe.value.interval_seconds
-              path                    = liveness_probe.value.path
-              timeout                 = liveness_probe.value.timeout
-
-              dynamic "header" {
-                for_each = liveness_probe.value.header == null ? [] : liveness_probe.value.header
-                content {
-                  name  = header.value.name
-                  value = header.value.value
-                }
-              }
-            }
-          }
-          dynamic "readiness_probe" {
-            for_each = container.value.readiness_probe == null ? [] : container.value.readiness_probe
-            content {
-              port                    = readiness_probe.value.port
-              transport               = readiness_probe.value.transport
-              failure_count_threshold = readiness_probe.value.failure_count_threshold
-              host                    = readiness_probe.value.host
-              interval_seconds        = readiness_probe.value.interval_seconds
-              path                    = readiness_probe.value.path
-              success_count_threshold = readiness_probe.value.success_count_threshold
-              timeout                 = readiness_probe.value.timeout
-
-              dynamic "header" {
-                for_each = readiness_probe.value.header == null ? [] : readiness_probe.value.header
-                content {
-                  name  = header.value.name
-                  value = header.value.value
-                }
-              }
-            }
-          }
-          dynamic "startup_probe" {
-            for_each = container.value.startup_probe == null ? [] : container.value.startup_probe
-            content {
-              port                    = startup_probe.value.port
-              transport               = startup_probe.value.transport
-              failure_count_threshold = startup_probe.value.failure_count_threshold
-              host                    = startup_probe.value.host
-              interval_seconds        = startup_probe.value.interval_seconds
-              path                    = startup_probe.value.path
-              timeout                 = startup_probe.value.timeout
-
-              dynamic "header" {
-                for_each = startup_probe.value.header == null ? [] : startup_probe.value.header
-                content {
-                  name  = header.value.name
-                  value = header.value.value
-                }
-              }
-            }
-          }
-          dynamic "volume_mounts" {
-            for_each = container.value.volume_mounts == null ? [] : container.value.volume_mounts
-            content {
-              name = volume_mounts.value.name
-              path = volume_mounts.value.path
-            }
-          }
-        }
-      }
-      dynamic "azure_queue_scale_rule" {
-        for_each = template.value.azure_queue_scale_rule == null ? [] : template.value.azure_queue_scale_rule
-        content {
-          name         = azure_queue_scale_rule.value.name
-          queue_length = azure_queue_scale_rule.value.queue_length
-          queue_name   = azure_queue_scale_rule.value.queue_name
-
-          dynamic "authentication" {
-            for_each = azure_queue_scale_rule.value.authentication
-            content {
-              secret_name       = authentication.value.secret_name
-              trigger_parameter = authentication.value.trigger_parameter
-            }
-          }
-        }
-      }
-      dynamic "custom_scale_rule" {
-        for_each = template.value.custom_scale_rule == null ? [] : template.value.custom_scale_rule
-        content {
-          custom_rule_type = custom_scale_rule.value.custom_rule_type
-          metadata         = custom_scale_rule.value.metadata
-          name             = custom_scale_rule.value.name
-
-          dynamic "authentication" {
-            for_each = custom_scale_rule.value.authentication == null ? [] : custom_scale_rule.value.authentication
-            content {
-              secret_name       = authentication.value.secret_name
-              trigger_parameter = authentication.value.trigger_parameter
-            }
-          }
-        }
-      }
-      dynamic "http_scale_rule" {
-        for_each = template.value.http_scale_rule == null ? [] : template.value.http_scale_rule
-        content {
-          concurrent_requests = http_scale_rule.value.concurrent_requests
-          name                = http_scale_rule.value.name
-
-          dynamic "authentication" {
-            for_each = http_scale_rule.value.authentication == null ? [] : http_scale_rule.value.authentication
-            content {
-              secret_name       = authentication.value.secret_name
-              trigger_parameter = authentication.value.trigger_parameter
-            }
-          }
-        }
-      }
-      dynamic "init_container" {
-        for_each = template.value.init_container == null ? [] : template.value.init_container
-        content {
-          image   = init_container.value.image
-          name    = init_container.value.name
-          args    = init_container.value.args
-          command = init_container.value.command
-          cpu     = init_container.value.cpu
-          memory  = init_container.value.memory
-
-          dynamic "env" {
-            for_each = init_container.value.env == null ? [] : init_container.value.env
-            content {
-              name        = env.value.name
-              secret_name = env.value.secret_name
-              value       = env.value.value
-            }
-          }
-          dynamic "volume_mounts" {
-            for_each = init_container.value.volume_mounts == null ? [] : init_container.value.volume_mounts
-            content {
-              name = volume_mounts.value.name
-              path = volume_mounts.value.path
-            }
-          }
-        }
-      }
-      dynamic "tcp_scale_rule" {
-        for_each = template.value.tcp_scale_rule == null ? [] : template.value.tcp_scale_rule
-        content {
-          concurrent_requests = tcp_scale_rule.value.concurrent_requests
-          name                = tcp_scale_rule.value.name
-
-          dynamic "authentication" {
-            for_each = tcp_scale_rule.value.authentication == null ? [] : tcp_scale_rule.value.authentication
-            content {
-              secret_name       = authentication.value.secret_name
-              trigger_parameter = authentication.value.trigger_parameter
-            }
-          }
-        }
-      }
-      dynamic "volume" {
-        for_each = template.value.volume == null ? [] : template.value.volume
-        content {
-          name         = volume.value.name
-          storage_name = volume.value.storage_name
-          storage_type = volume.value.storage_type
-        }
-      }
-    }
-  }
-  dynamic "dapr" {
-    for_each = var.container_app_dapr == null ? [] : [var.container_app_dapr]
-    content {
-      app_id       = dapr.value.app_id
-      app_port     = dapr.value.app_port
-      app_protocol = dapr.value.app_protocol
+      key_vault_key_id   = customer_managed_key.value.key_vault_key_id
+      identity_client_id = customer_managed_key.value.identity_client_id
     }
   }
   dynamic "identity" {
-    for_each = var.container_app_identity == null ? [] : [var.container_app_identity]
+    for_each = var.cognitive_account_identity == null ? [] : [var.cognitive_account_identity]
     content {
       type         = identity.value.type
       identity_ids = identity.value.identity_ids
     }
   }
-  dynamic "ingress" {
-    for_each = var.container_app_ingress == null ? [] : [var.container_app_ingress]
+  dynamic "network_acls" {
+    for_each = var.cognitive_account_network_acls == null ? [] : [var.cognitive_account_network_acls]
     content {
-      target_port                = ingress.value.target_port
-      allow_insecure_connections = ingress.value.allow_insecure_connections
-      exposed_port               = ingress.value.exposed_port
-      external_enabled           = ingress.value.external_enabled
-      transport                  = ingress.value.transport
+      default_action = network_acls.value.default_action
+      ip_rules       = network_acls.value.ip_rules
 
-      dynamic "traffic_weight" {
-        for_each = ingress.value.traffic_weight
+      dynamic "virtual_network_rules" {
+        for_each = network_acls.value.virtual_network_rules == null ? [] : network_acls.value.virtual_network_rules
         content {
-          percentage      = traffic_weight.value.percentage
-          label           = traffic_weight.value.label
-          latest_revision = traffic_weight.value.latest_revision
-          revision_suffix = traffic_weight.value.revision_suffix
-        }
-      }
-      dynamic "custom_domain" {
-        for_each = ingress.value.custom_domain == null ? [] : [ingress.value.custom_domain]
-        content {
-          certificate_id           = custom_domain.value.certificate_id
-          name                     = custom_domain.value.name
-          certificate_binding_type = custom_domain.value.certificate_binding_type
-        }
-      }
-      dynamic "ip_security_restriction" {
-        for_each = ingress.value.ip_security_restriction == null ? [] : ingress.value.ip_security_restriction
-        content {
-          action           = ip_security_restriction.value.action
-          ip_address_range = ip_security_restriction.value.ip_address_range
-          name             = ip_security_restriction.value.name
-          description      = ip_security_restriction.value.description
+          subnet_id                            = virtual_network_rules.value.subnet_id
+          ignore_missing_vnet_service_endpoint = virtual_network_rules.value.ignore_missing_vnet_service_endpoint
         }
       }
     }
   }
-  dynamic "registry" {
-    for_each = var.container_app_registry == null ? [] : var.container_app_registry
+  dynamic "storage" {
+    for_each = var.cognitive_account_storage == null ? [] : var.cognitive_account_storage
     content {
-      server               = registry.value.server
-      identity             = registry.value.identity
-      password_secret_name = registry.value.password_secret_name
-      username             = registry.value.username
-    }
-  }
-  dynamic "secret" {
-    for_each = var.container_app_secret == null ? [] : var.container_app_secret
-    content {
-      name                = secret.value.name
-      identity            = secret.value.identity
-      key_vault_secret_id = secret.value.key_vault_secret_id
-      value               = secret.value.value
+      storage_account_id = storage.value.storage_account_id
+      identity_client_id = storage.value.identity_client_id
     }
   }
   dynamic "timeouts" {
-    for_each = var.container_app_timeouts == null ? [] : [var.container_app_timeouts]
+    for_each = var.cognitive_account_timeouts == null ? [] : [var.cognitive_account_timeouts]
     content {
       create = timeouts.value.create
       delete = timeouts.value.delete

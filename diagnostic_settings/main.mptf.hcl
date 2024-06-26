@@ -83,7 +83,6 @@ transform "new_block" "azurerm_monitor_diagnostic_setting_resource" {
     }
   }
   asstring {
-#     name                           = each.value.name != null ? each.value.name : diag-azurerm_container_app.this.name
     name                           = "each.value.name != null ? each.value.name : ${coalesce(var.monitor_diagnostic_setting_default_name, "\"diag-$${${var.target_resource_address}.name}\"")}"
     target_resource_id             = "${var.target_resource_address}.id"
   }
