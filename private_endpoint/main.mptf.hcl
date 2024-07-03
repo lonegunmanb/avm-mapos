@@ -152,6 +152,11 @@ variable "target_resource_address" {
   }
 }
 
+locals {
+                        //name                          = each.value.name != null ? each.value.name : "pep-${each.value.subresource_name}"
+  private_endpoint_name = var.multiple_underlying_services ? "each.value.name != null ? each.value.name : lower(\"pep-$${each.value.subresource_name}\")" : "each.value.name != null ? each.value.name : lower(\"pep-$${${var.service_name}.name}\")"
+}
+
 transform "new_block" "private_endpoint" {
   new_block_type = "resource"
   filename       = "main.privateendpoint.tf"
@@ -172,7 +177,7 @@ transform "new_block" "private_endpoint" {
     }
   }
   asstring {
-    name                          = "each.value.name != null ? each.value.name : \"pep-$${${var.service_name}.name}\""
+    name                          = local.private_endpoint_name
     location                      = "each.value.location != null ? each.value.location : ${var.target_resource_address}.location"
     resource_group_name           = "each.value.resource_group_name != null ? each.value.resource_group_name : ${var.target_resource_address}.resource_group_name"
     private_service_connection {
@@ -193,7 +198,7 @@ transform "new_block" "private_endpoint" {
     }
   }
   precondition {
-    condition = var.service_name != "" || !var.multiple_underlying_services
+    condition = var.service_name != "" || var.multiple_underlying_services
     error_message = "The `var.service_name` variable must be set when `var.multiple_underlying_services` is false."
   }
 }
@@ -218,7 +223,7 @@ transform "new_block" "private_endpoint_this_unmanaged_dns_zone_groups" {
     }
   }
   asstring {
-    name                          = "each.value.name != null ? each.value.name : \"pep-$${${var.service_name}.name}\""
+    name                          = local.private_endpoint_name
     location                      = "each.value.location != null ? each.value.location : ${var.target_resource_address}.location"
     resource_group_name           = "each.value.resource_group_name != null ? each.value.resource_group_name : ${var.target_resource_address}.resource_group_name"
     private_service_connection {
@@ -239,7 +244,7 @@ transform "new_block" "private_endpoint_this_unmanaged_dns_zone_groups" {
     }
   }
   precondition {
-    condition = var.service_name != "" || !var.multiple_underlying_services
+    condition = var.service_name != "" || var.multiple_underlying_services
     error_message = "The `var.service_name` variable must be set when `var.multiple_underlying_services` is false."
   }
 }
