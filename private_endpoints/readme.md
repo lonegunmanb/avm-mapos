@@ -209,72 +209,100 @@ resource "azurerm_storage_account" "this" {
 Then you could run `mapotf`:
 
 ```Shell
-mapotf transform --mptf-var target_resource_address=azurerm_storage_account.this  --mptf-var multiple_underlying_services=true --tf-dir . --mptf-dir git::https://github.com/lonegunmanb/avm-mapos.git//private_endpoint
+mapotf transform --mptf-var target_resource_address=azurerm_storage_account.this  --mptf-var multiple_underlying_services=true --tf-dir . --mptf-dir git::https://github.com/lonegunmanb/avm-mapos.git//private_endpoints
 ```
 
-Since `azurerm_storage_account` do support both `SystemAssigned` and `UserAssigned`, we set both `var.support_user_assigned` and `var.support_system_assigned` to `true.
+Since `azurerm_storage_account` does have multiple underlying services, like blob container, queue and table, we set `--mptf-var multiple_underlying_services=true` here.
 
 Then you would see the following Terraform config:
 
-`main.tf`
+`main.privateendpoint.tf`
 
 ```hcl
-resource "azurerm_storage_account" "this" {
-  account_replication_type          = var.storage_account.account_replication_type
-  account_tier                      = var.storage_account.account_tier
-  location                          = var.storage_account.location
-  name                              = var.storage_account.name
-  resource_group_name               = var.storage_account.resource_group_name
-  access_tier                       = var.storage_account.access_tier
-  account_kind                      = var.storage_account.account_kind
-  allow_nested_items_to_be_public   = var.storage_account.allow_nested_items_to_be_public
-  allowed_copy_scope                = var.storage_account.allowed_copy_scope
-  cross_tenant_replication_enabled  = var.storage_account.cross_tenant_replication_enabled
-  default_to_oauth_authentication   = var.storage_account.default_to_oauth_authentication
-  dns_endpoint_type                 = var.storage_account.dns_endpoint_type
-  edge_zone                         = var.storage_account.edge_zone
-  enable_https_traffic_only         = var.storage_account.enable_https_traffic_only
-  infrastructure_encryption_enabled = var.storage_account.infrastructure_encryption_enabled
-  is_hns_enabled                    = var.storage_account.is_hns_enabled
-  large_file_share_enabled          = var.storage_account.large_file_share_enabled
-  local_user_enabled                = var.storage_account.local_user_enabled
-  min_tls_version                   = var.storage_account.min_tls_version
-  nfsv3_enabled                     = var.storage_account.nfsv3_enabled
-  public_network_access_enabled     = var.storage_account.public_network_access_enabled
-  queue_encryption_key_type         = var.storage_account.queue_encryption_key_type
-  sftp_enabled                      = var.storage_account.sftp_enabled
-  shared_access_key_enabled         = var.storage_account.shared_access_key_enabled
-  table_encryption_key_type         = var.storage_account.table_encryption_key_type
-  tags                              = var.storage_account.tags
+locals {
+  private_endpoint_application_security_group_associations = {
+    for assoc in flatten([
+      for pe_k, pe_v in var.private_endpoints : [
+        for asg_k, asg_v in pe_v.application_security_group_associations : {
+          asg_key         = asg_k
+          pe_key          = pe_k
+          asg_resource_id = asg_v
+        }
+      ]
+    ]) : "${assoc.pe_key}-${assoc.asg_key}" => assoc
+  }
+}
 
-  dynamic "identity" {
-    for_each = local.managed_identities.system_assigned_user_assigned
+resource "azurerm_private_endpoint" "this" {
+
+  for_each = { for k, v in var.private_endpoints : k => v if var.private_endpoints_manage_dns_zone_group }
+
+  location                      = each.value.location != null ? each.value.location : azurerm_storage_account.this.location
+  name                          = each.value.name != null ? each.value.name : lower("pep-${each.value.subresource_name}")
+  resource_group_name           = each.value.resource_group_name != null ? each.value.resource_group_name : azurerm_storage_account.this.resource_group_name
+  subnet_id                     = each.value.subnet_resource_id
+  custom_network_interface_name = each.value.network_interface_name
+  tags                          = each.value.tags
+
+  private_service_connection {
+
+    is_manual_connection           = false
+    name                           = each.value.private_service_connection_name != null ? each.value.private_service_connection_name : "pse-${azurerm_storage_account.this.name}"
+    private_connection_resource_id = azurerm_storage_account.this.id
+    subresource_names              = each.value.subresource_name
+  }
+  dynamic "ip_configuration" {
+    for_each = each.value.ip_configurations
     content {
-      type         = identity.value.type
-      identity_ids = identity.value.user_assigned_resource_ids
+
+      name               = ip_configuration.value.name
+      private_ip_address = ip_configuration.value.private_ip_address
+      member_name        = each.value.subresource_name
+      subresource_name   = each.value.subresource_name
+    }
+  }
+  dynamic "private_dns_zone_group" {
+    for_each = length(each.value.private_dns_zone_resource_ids) > 0 ? ["this"] : []
+    content {
+
+      name                 = each.value.private_dns_zone_group_name
+      private_dns_zone_ids = each.value.private_dns_zone_resource_ids
     }
   }
 }
 
-locals {
-  managed_identities = {
-    system_assigned_user_assigned = (var.managed_identities.system_assigned || length(var.managed_identities.user_assigned_resource_ids) > 0) ? {
-      this = {
-        type                       = var.managed_identities.system_assigned && length(var.managed_identities.user_assigned_resource_ids) > 0 ? "SystemAssigned, UserAssigned" : length(var.managed_identities.user_assigned_resource_ids) > 0 ? "UserAssigned" : "SystemAssigned"
-        user_assigned_resource_ids = var.managed_identities.user_assigned_resource_ids
-      }
-    } : {}
-    system_assigned = var.managed_identities.system_assigned ? {
-      this = {
-        type = "SystemAssigned"
-      }
-    } : {}
-    user_assigned = length(var.managed_identities.user_assigned_resource_ids) > 0 ? {
-      this = {
-        type                       = "UserAssigned"
-        user_assigned_resource_ids = var.managed_identities.user_assigned_resource_ids
-      }
-    } : {}
+resource "azurerm_private_endpoint" "this_unmanaged_dns_zone_groups" {
+
+  for_each = { for k, v in var.private_endpoints : k => v if !var.private_endpoints_manage_dns_zone_group }
+
+  location                      = each.value.location != null ? each.value.location : azurerm_storage_account.this.location
+  name                          = each.value.name != null ? each.value.name : lower("pep-${each.value.subresource_name}")
+  resource_group_name           = each.value.resource_group_name != null ? each.value.resource_group_name : azurerm_storage_account.this.resource_group_name
+  subnet_id                     = each.value.subnet_resource_id
+  custom_network_interface_name = each.value.network_interface_name
+  tags                          = each.value.tags
+
+  private_service_connection {
+
+    is_manual_connection           = false
+    name                           = each.value.private_service_connection_name != null ? each.value.private_service_connection_name : "pse-${azurerm_storage_account.this.name}"
+    private_connection_resource_id = azurerm_storage_account.this.id
+    subresource_names              = each.value.subresource_name
+  }
+  dynamic "ip_configuration" {
+    for_each = each.value.ip_configurations
+    content {
+
+      name               = ip_configuration.value.name
+      private_ip_address = ip_configuration.value.private_ip_address
+      member_name        = each.value.subresource_name
+      subresource_name   = each.value.subresource_name
+    }
+  }
+
+  lifecycle {
+
+    ignore_changes = [private_dns_zone_group]
   }
 }
 ```
@@ -282,18 +310,57 @@ locals {
 `variables.tf`
 
 ```hcl
-variable "managed_identities" {
+variable "private_endpoints_manage_dns_zone_group" {
 
-  type = object({
-    system_assigned            = optional(bool, false)
-    user_assigned_resource_ids = optional(set(string), [])
-  })
+  type        = bool
+  default     = true
+  description = "Whether to manage private DNS zone groups with this module. If set to false, you must manage private DNS zone groups externally, e.g. using Azure Policy."
+  nullable    = false
+}
+
+variable "private_endpoints" {
+
+  type = map(object({
+    name = optional(string, null)
+    # see https://azure.github.io/Azure-Verified-Modules/Azure-Verified-Modules/specs/shared/interfaces/#role-assignments
+    role_assignments = optional(map(object({})), {})
+    # see https://azure.github.io/Azure-Verified-Modules/Azure-Verified-Modules/specs/shared/interfaces/#resource-locks
+    lock = optional(object({}), {})
+    # see https://azure.github.io/Azure-Verified-Modules/Azure-Verified-Modules/specs/shared/interfaces/#tags
+    tags                                    = optional(map(string), null)
+    subnet_resource_id                      = string
+    subresource_name                        = string
+    private_dns_zone_group_name             = optional(string, "default")
+    private_dns_zone_resource_ids           = optional(set(string), [])
+    application_security_group_associations = optional(map(string), {})
+    private_service_connection_name         = optional(string, null)
+    network_interface_name                  = optional(string, null)
+    location                                = optional(string, null)
+    resource_group_name                     = optional(string, null)
+    ip_configurations = optional(map(object({
+      name               = string
+      private_ip_address = string
+    })), {})
+  }))
   default     = {}
   description = <<DESCRIPTION
-  Controls the Managed Identity configuration on this resource. The following properties can be specified:
+  A map of private endpoints to create on the Key Vault. The map key is deliberately arbitrary to avoid issues where map keys maybe unknown at plan time.
 
-  - `system_assigned` - (Optional) Specifies if the System Assigned Managed Identity should be enabled.
-  - `user_assigned_resource_ids` - (Optional) Specifies a list of User Assigned Managed Identity resource IDs to be assigned to this resource.
+  - `name` - (Optional) The name of the private endpoint. One will be generated if not set.
+  - `role_assignments` - (Optional) A map of role assignments to create on the private endpoint. The map key is deliberately arbitrary to avoid issues where map keys maybe unknown at plan time. See `var.role_assignments` for more information.
+  - `lock` - (Optional) The lock level to apply to the private endpoint. Default is `None`. Possible values are `None`, `CanNotDelete`, and `ReadOnly`.
+  - `tags` - (Optional) A mapping of tags to assign to the private endpoint.
+  - `subnet_resource_id` - The resource ID of the subnet to deploy the private endpoint in.
+  - `private_dns_zone_group_name` - (Optional) The name of the private DNS zone group. One will be generated if not set.
+  - `private_dns_zone_resource_ids` - (Optional) A set of resource IDs of private DNS zones to associate with the private endpoint. If not set, no zone groups will be created and the private endpoint will not be associated with any private DNS zones. DNS records must be managed external to this module.
+  - `application_security_group_resource_ids` - (Optional) A map of resource IDs of application security groups to associate with the private endpoint. The map key is deliberately arbitrary to avoid issues where map keys maybe unknown at plan time.
+  - `private_service_connection_name` - (Optional) The name of the private service connection. One will be generated if not set.
+  - `network_interface_name` - (Optional) The name of the network interface. One will be generated if not set.
+  - `location` - (Optional) The Azure location where the resources will be deployed. Defaults to the location of the resource group.
+  - `resource_group_name` - (Optional) The resource group where the resources will be deployed. Defaults to the resource group of the Key Vault.
+  - `ip_configurations` - (Optional) A map of IP configurations to create on the private endpoint. If not specified the platform will create one. The map key is deliberately arbitrary to avoid issues where map keys maybe unknown at plan time.
+    - `name` - The name of the IP configuration.
+    - `private_ip_address` - The private IP address of the IP configuration.
   DESCRIPTION
   nullable    = false
 }

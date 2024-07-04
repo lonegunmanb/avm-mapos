@@ -153,7 +153,6 @@ variable "target_resource_address" {
 }
 
 locals {
-                        //name                          = each.value.name != null ? each.value.name : "pep-${each.value.subresource_name}"
   private_endpoint_name = var.multiple_underlying_services ? "each.value.name != null ? each.value.name : lower(\"pep-$${each.value.subresource_name}\")" : "each.value.name != null ? each.value.name : lower(\"pep-$${${var.service_name}.name}\")"
 }
 
@@ -213,12 +212,12 @@ transform "new_block" "private_endpoint_this_unmanaged_dns_zone_groups" {
   filename       = "main.privateendpoint.tf"
   labels = ["azurerm_private_endpoint", "this_unmanaged_dns_zone_groups"]
   asraw {
-    for_each                      = { for k, v in var.private_endpoints : k => v if var.private_endpoints_manage_dns_zone_group }
+    for_each                      = { for k, v in var.private_endpoints : k => v if !var.private_endpoints_manage_dns_zone_group }
     subnet_id                     = each.value.subnet_resource_id
     custom_network_interface_name = each.value.network_interface_name
     tags                          = each.value.tags
 
-        lifecycle {
+    lifecycle {
       ignore_changes = [private_dns_zone_group]
     }
   }
